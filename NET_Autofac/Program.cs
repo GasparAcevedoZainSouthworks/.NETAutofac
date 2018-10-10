@@ -12,29 +12,41 @@ namespace NET_Autofac
             var builder = new ContainerBuilder();
             builder.RegisterType<ConsoleOutput>().As<IOutput>();
             builder.RegisterType(typeof(TodayWriter)).As<IDateWriter>();
-            
+
             builder.Register(c => new TomorrowWriter(c.Resolve<IOutput>()))
                         .AsSelf().PreserveExistingDefaults();
 
-            builder.RegisterType(typeof(Logger)).As<ILogger>();
-            builder.RegisterType<LoggerConsumer>().UsingConstructor(typeof(ILogger)).As<ILoggerConsumer>();
             container = builder.Build();
-            
+
             Writedate();
+            WriteLog();
         }
         public static void Writedate()
         {
             using(var scope = container.BeginLifetimeScope())
             {
-                var writer = scope.Resolve<IDateWriter>();
-                writer.WriteDate();
+                // Testing nested scopes
+                using(var scope2 = container.BeginLifetimeScope())
+                {
+                    var writer = scope.Resolve<IDateWriter>();
+                    var writer2 = scope2.Resolve<TomorrowWriter>();
+
+                    writer.WriteDate();
+                    writer2.WriteDate();
+                }
             }
-            using(var scope = container.BeginLifetimeScope())
-            {
-                var writer = scope.Resolve<TomorrowWriter>();
-                writer.WriteDate();
-            }
-            using(var scope = container.BeginLifetimeScope())
+        }
+
+        public static void WriteLog()
+        {
+            using(var scope = container.BeginLifetimeScope(
+                builder =>
+                {
+                    builder.RegisterType(typeof(Logger)).As<ILogger>();
+                    builder.RegisterType<LoggerConsumer>().UsingConstructor(typeof(ILogger))
+                        .As<ILoggerConsumer>();
+                }
+            ))
             {
                 var logger = scope.Resolve<ILoggerConsumer>();
                 logger.LogString("Log String test");
